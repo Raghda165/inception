@@ -1,0 +1,90 @@
+
+version: "3.8"
+networks:
+  inception:
+    name: inception
+    driver: bridge
+services:
+  nginx:
+    build:
+      context: .
+      dockerfile: requirements/nginx/Dockerfile
+    container_name: nginx
+    depends_on:
+      - wordpress
+    ports:
+      - "443:443"
+    volumes:
+      - wp-data:/var/www/html/wordpress
+    restart: always
+    networks:
+      - inception
+  mariadb:
+    build:
+      context: .
+      dockerfile: requirements/mariadb/Dockerfile
+    environment:
+      DB_USER: ${DB_USER}
+      DB_NAME: ${DB_NAME}
+    container_name: mariadb
+    secrets:
+     - DB_PASSWORD
+    expose:
+      - 3306
+    volumes:
+      - db-volume-new:/var/lib/mysql
+    restart: always
+    tty: true
+    stdin_open: true
+    networks:
+      - inception
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASS}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+  wordpress:
+    build:
+      context: .
+      dockerfile: requirements/wordpress/Dockerfile
+    environment:
+      DB_USER: ${DB_USER}
+      DB_NAME: ${DB_NAME}
+      WP_USER: ${WP_USER}
+      WP_EMAIL: ${WP_EMAIL}
+      WP_PASS: ${WP_PASS}
+      WP_USER2: ${WP_USER2}
+      WP_EMAIL2: ${WP_EMAIL2}
+      WP_PASS2: ${WP_PASS2}
+    secrets:
+     - DB_PASSWORD
+
+    container_name: wordpress
+    expose:
+      - 9000
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    restart: always
+    networks:
+      - inception
+    volumes:
+      - wp-data:/var/www/html/wordpress
+      - db-volume-new:/var/lib/mysql
+volumes:
+  wp-data: 
+   driver_opts:
+      o: bind
+      type: none
+      device: /home/ryagoub/data/wordpress
+  db-volume-new:
+    driver_opts:
+      o: bind
+      type: none
+      device: /home/ryagoub/data/mariadb
+secrets:
+  DB_PASSWORD:
+    file: ../secrets/db_password.txt
+
+
